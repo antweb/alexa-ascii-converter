@@ -17,7 +17,11 @@ public class AsciiConverterSpeechlet implements Speechlet {
     public SpeechletResponse onLaunch(LaunchRequest launchRequest, Session session) throws SpeechletException {
         PlainTextOutputSpeech response = new PlainTextOutputSpeech();
         response.setText("Which character or code would you like to convert?");
-        return SpeechletResponse.newTellResponse(response);
+
+        Reprompt reprompt = new Reprompt();
+        reprompt.setOutputSpeech(response);
+
+        return SpeechletResponse.newAskResponse(response, reprompt);
     }
 
     @Override
@@ -30,13 +34,7 @@ public class AsciiConverterSpeechlet implements Speechlet {
         } else if ("AsciiToCharIntent".equals(intentName)) {
             return getAsciiToCharResponse(intentRequest);
         } else {
-            PlainTextOutputSpeech response = new PlainTextOutputSpeech();
-            response.setText("Could you repeat that?");
-
-            Reprompt reprompt = new Reprompt();
-            reprompt.setOutputSpeech(response);
-
-            return SpeechletResponse.newAskResponse(response, reprompt);
+            return getRepromptResponse();
         }
     }
 
@@ -46,9 +44,12 @@ public class AsciiConverterSpeechlet implements Speechlet {
     }
 
     private SpeechletResponse getCharToAsciiResponse(IntentRequest intentRequest) {
-        char inputChar = 'B';
-        String asciiCodeLower = charToAscii(Character.toLowerCase(inputChar));
-        String asciiCodeUpper = charToAscii(Character.toUpperCase(inputChar));
+        String inputChar = intentRequest.getIntent().getSlot("Character").getValue();
+        if (inputChar.length() != 1) {
+            return getRepromptResponse();
+        }
+        String asciiCodeLower = charToAscii(Character.toLowerCase(inputChar.charAt(0)));
+        String asciiCodeUpper = charToAscii(Character.toUpperCase(inputChar.charAt(0)));
 
         SsmlOutputSpeech response = new SsmlOutputSpeech();
         String ssml = "<speak>The <phoneme alphabet=\"ipa\" ph=\"æski\">ascii</phoneme>" +
@@ -61,13 +62,33 @@ public class AsciiConverterSpeechlet implements Speechlet {
     }
 
     private SpeechletResponse getAsciiToCharResponse(IntentRequest intentRequest) {
-        int inputAscii = 84;
+        String input = intentRequest.getIntent().getSlot("Code").getValue();
+        System.out.println("input " + input);
+
+        int inputAscii;
+        try {
+            inputAscii = Integer.parseInt(input);
+        } catch (NumberFormatException e) {
+            return getRepromptResponse();
+        }
+        System.out.println("inputAscii " + inputAscii);
+
         String lowerUpperCaseStr = "";
 
         if (inputAscii >= 65 && inputAscii <= 90) {
             lowerUpperCaseStr = "upper case ";
         } else if (inputAscii >= 97 && inputAscii <= 122) {
             lowerUpperCaseStr = "lower case ";
+        } else if (inputAscii >= 48 && inputAscii <= 57) {
+            // number
+        } else {
+            PlainTextOutputSpeech response = new PlainTextOutputSpeech();
+            response.setText("I'm sorry, this code is not supported. Would you like to convert a different code?");
+
+            Reprompt reprompt = new Reprompt();
+            reprompt.setOutputSpeech(response);
+
+            return SpeechletResponse.newAskResponse(response, reprompt);
         }
 
         String character = asciiToChar(inputAscii);
@@ -78,6 +99,16 @@ public class AsciiConverterSpeechlet implements Speechlet {
                 ".</speak>";
         response.setSsml(ssml);
         return SpeechletResponse.newTellResponse(response);
+    }
+
+    private SpeechletResponse getRepromptResponse() {
+        PlainTextOutputSpeech response = new PlainTextOutputSpeech();
+        response.setText("Could you repeat that?");
+
+        Reprompt reprompt = new Reprompt();
+        reprompt.setOutputSpeech(response);
+
+        return SpeechletResponse.newAskResponse(response, reprompt);
     }
 
     private String charToAscii(char c) {
